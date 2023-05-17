@@ -1,9 +1,15 @@
 use axum::{
     extract::{Path, Query},
-    http::StatusCode,
+    http::{
+        header::{ACCEPT, CONTENT_TYPE, ORIGIN},
+        Method, StatusCode,
+    },
     routing::{get, post},
     Json, Router,
 };
+
+use tower_http::cors::CorsLayer;
+
 use serde::{Deserialize, Serialize};
 mod database;
 
@@ -40,7 +46,16 @@ struct UuidLibro {
     id: String,
 }
 #[tokio::main]
+
+// info que no puede ser vista por el user
+
+//get para obtener informacion que quiera mostrar al usuario
 async fn main() {
+    let origins = [
+        "http://localhost:3000".parse().unwrap(),
+        "http://localhost:3000/".parse().unwrap(),
+    ];
+
     let app = Router::new()
         .route("/", get(hello))
         .route("/login", post(login))
@@ -50,12 +65,205 @@ async fn main() {
         .route("/libros/one", post(get_libro_uuid))
         .route("/insert", post(insert_libros))
         .route("/update", post(update_libro))
-        .route("/delete", post(deleleLibro));
+        .route("/delete", post(deleleLibro))
+        .route("/insertar", post(insertar))
+        .route("/actualizar", post(update))
+        .route("/eliminar", post(delelete))
+        .route("/select", get(select))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(origins)
+                .allow_headers([ORIGIN, ACCEPT, CONTENT_TYPE])
+                .allow_methods([Method::GET, Method::POST]),
+        );
 
     axum::Server::bind(&"0.0.0.0:7000".parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
+}
+
+async fn delelete(Json(payload): Json<UuidLibro>) -> Json<UpResponse> {
+    let pool = DB::connection().await;
+    let uuid = Uuid::parse_str(&payload.id).expect("error al transformar uuid");
+
+    let sql = sqlx::query!("DELETE FROM repolib WHERE id = $1", uuid)
+        .execute(&pool)
+        .await
+        .expect("error al eliminar libro")
+        .rows_affected();
+
+    let response = if sql > 0 {
+        UpResponse {
+            status: "200 OK".to_string(),
+            rows_affected: true,
+            description: "libro eliminado".to_string(),
+        }
+    } else {
+        UpResponse {
+            status: "404 Not Found".to_string(),
+            rows_affected: false,
+            description: "libro no eliminado".to_string(),
+        }
+    };
+
+    Json(response)
+}
+
+struct SelectLibros {
+    id: Uuid,
+    titulo: String,
+    description: Option<String>,
+}
+
+#[derive(Serialize)]
+struct Response {
+    status: String,
+    data: Vec<SelectToString>,
+    description: String,
+}
+#[derive(Serialize)]
+struct SelectToString {
+    Uuid: String,
+    titulo: String,
+    description: String,
+}
+async fn select() -> Json<Response> {
+    let pool = DB::connection().await;
+
+    let sql = sqlx::query_as!(
+        SelectLibros,
+        "
+        SELECT * from repolib
+        "
+    )
+    .fetch_all(&pool)
+    .await;
+
+    let response = match sql {
+        Ok(data) => Response {
+            status: "200 OK".to_string(),
+            data: data
+                .into_iter()
+                .map(|x| SelectToString {
+                    Uuid: x.id.to_string(),
+                    titulo: x.titulo,
+                    description: option_to_string(x.description),
+                })
+                .collect(),
+            description: "libros encontrados".to_string(),
+        },
+        Err(_err) => Response {
+            status: StatusCode::CONFLICT.to_string(),
+            data: vec![],
+            description: _err.to_string(),
+        },
+    };
+
+    Json(response)
+}
+
+async fn option_to_String(value: Option<String>) {
+    let new_value = match value {
+        Some(val) => val,
+        None => "".to_string(),
+    };
+}
+#[derive(Deserialize)]
+struct InsertarLibros {
+    titulo: String,
+    description: String,
+}
+
+struct UpdateLibros {
+    titulo: String,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct InResponse {
+    status: String,
+    uuid: String,
+    description: String,
+}
+async fn insertar(Json(payload): Json<InsertarLibros>) -> Json<InResponse> {
+    let pool = DB::connection().await;
+    let sql = sqlx::query!(
+        r#"
+        INSERT INTO repolib (titulo, description)
+         values ($1, $2) returning id "#,
+        payload.titulo,
+        payload.description
+    )
+    .fetch_one(&pool)
+    .await;
+
+    let uuid = match sql {
+        Ok(id) => id.id.to_string(),
+        Err(_error) => "".to_string(),
+    };
+
+    // let response = InResponse{
+    //     status: "200 OK".to_string(),
+    //     uuid: uuid,
+    //     description: "Query realizado".to_string(),
+    // };
+
+    Json(InResponse {
+        status: "200 OK".to_string(),
+        uuid: uuid,
+        description: "Query realizado".to_string(),
+    })
+}
+
+#[derive(Deserialize)]
+struct UpdateLibross {
+    uuid: String,
+    titulo: String,
+    description: String,
+}
+
+#[derive(Serialize)]
+struct UpResponse {
+    status: String,
+    rows_affected: bool,
+    description: String,
+}
+
+async fn update(Json(payload): Json<UpdateLibross>) -> Json<UpResponse> {
+    let pool = DB::connection().await;
+
+    let uuid = Uuid::parse_str(&payload.uuid).expect("error al transformar uuid");
+    let sql = sqlx::query!(
+        r#"
+    UPDATE repolib
+    SET titulo = $1, description = $2
+    WHERE id = $3
+    "#,
+        payload.titulo,
+        payload.description,
+        uuid
+    )
+    .execute(&pool)
+    .await
+    .expect("error al actualizar")
+    .rows_affected();
+
+    let response = if sql > 0 {
+        UpResponse {
+            status: "200 OK".to_string(),
+            rows_affected: true,
+            description: "Update realizado".to_string(),
+        }
+    } else {
+        UpResponse {
+            status: "409 CONFLICT".to_string(),
+            rows_affected: false,
+            description: "Update no realizado".to_string(),
+        }
+    };
+
+    Json(response)
 }
 
 #[derive(Deserialize)]
