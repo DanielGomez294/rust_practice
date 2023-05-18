@@ -19,26 +19,26 @@ use sqlx::types::Uuid;
 struct LibrosDb {
     id: Uuid,
     titulo: String,
-    description: Option<String>,
+    descripcion: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct LibrosDBV2 {
     uuid: String,
     titulo: String,
-    description: String,
+    descripcion: String,
 }
 
 #[derive(Serialize)]
 struct DefaultResponse {
     status: String,
     libro: Vec<LibrosDBV2>,
-    description: String,
+    descripcion: String,
 }
 
 struct LibroResumen {
     titulo: String,
-    description: Option<String>,
+    descripcion: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -317,30 +317,30 @@ async fn update(Json(payload): Json<UpdateLibross>) -> Json<UpResponse> {
 #[derive(Deserialize)]
 struct insertlibros {
     titulo: String,
-    description: String,
+    descripcion: String,
 }
 
 #[derive(Serialize)]
 struct insertResponse {
     status: String,
     id: String,
-    description: String,
+    descripcion: String,
 }
 
 #[derive(Serialize)]
 struct UpdateResponse {
     status: String,
     rows_affected: bool,
-    description: String,
+    descripcion: String,
 }
 async fn insert_libros(Json(payload): Json<insertlibros>) -> Json<insertResponse> {
     let pool = DB::connection().await;
     let record = sqlx::query!(
         r#"
-    INSERT INTO repolib (titulo, description) values($1, $2) returning id
+    INSERT INTO repolib (titulo, descripcion) values($1, $2) returning id
     "#,
         payload.titulo,
-        payload.description
+        payload.descripcion
     )
     .fetch_one(&pool)
     .await;
@@ -353,7 +353,7 @@ async fn insert_libros(Json(payload): Json<insertlibros>) -> Json<insertResponse
     let response = insertResponse {
         status: "200 OK".to_string(),
         id: id,
-        description: "".to_string(),
+        descripcion: "".to_string(),
     };
 
     Json(response)
@@ -365,10 +365,10 @@ async fn update_libro(Json(payload): Json<LibrosDBV2>) -> Json<UpdateResponse> {
     let rows_affected = sqlx::query!(
         r#"
    UPDATE repolib
-   SET titulo = $1, description = $2 WHERE id = $3
+   SET titulo = $1, descripcion = $2 WHERE id = $3
     "#,
         payload.titulo,
-        payload.description,
+        payload.descripcion,
         Uuid
     )
     .execute(&pool)
@@ -380,13 +380,13 @@ async fn update_libro(Json(payload): Json<LibrosDBV2>) -> Json<UpdateResponse> {
         UpdateResponse {
             status: "200 OK".to_string(),
             rows_affected: true,
-            description: "libro actualizado".to_string(),
+            descripcion: "libro actualizado".to_string(),
         }
     } else {
         UpdateResponse {
             status: "409 conflict".to_string(),
             rows_affected: true,
-            description: "error al  actualizado libro".to_string(),
+            descripcion: "error al  actualizado libro".to_string(),
         }
     };
 
@@ -413,13 +413,13 @@ async fn deleleLibro(Json(payload): Json<UuidLibro>) -> Json<UpdateResponse> {
         UpdateResponse {
             status: "200 OK".to_string(),
             rows_affected: true,
-            description: "libro eliminado".to_string(),
+            descripcion: "libro eliminado".to_string(),
         }
     } else {
         UpdateResponse {
             status: "409 conflict".to_string(),
             rows_affected: true,
-            description: "error al eliminar libro".to_string(),
+            descripcion: "error al eliminar libro".to_string(),
         }
     };
 
@@ -431,7 +431,7 @@ async fn get_libro_uuid(Json(payload): Json<UuidLibro>) -> Json<DefaultResponse>
     let id = Uuid::parse_str(&payload.id).expect("error al transformar uuid");
     let sql = sqlx::query_as!(
         LibroResumen,
-        r#"SELECT  titulo, description from repolib WHERE id = $1"#,
+        r#"SELECT  titulo , descripcion from repolib WHERE id = $1"#,
         id
     )
     .fetch_one(&pool)
@@ -441,12 +441,12 @@ async fn get_libro_uuid(Json(payload): Json<UuidLibro>) -> Json<DefaultResponse>
         Ok(res) => DefaultResponse {
             status: "200 OK".to_string(),
             libro: vec![],
-            description: "registro obtenido".to_string(),
+            descripcion: "registro obtenido".to_string(),
         },
         Err(_err) => DefaultResponse {
             status: "404 Not Found".to_string(),
             libro: vec![],
-            description: "libro no encontrado".to_string(),
+            descripcion: "libro no encontrado".to_string(),
         },
     };
     Json(response)
@@ -454,7 +454,8 @@ async fn get_libro_uuid(Json(payload): Json<UuidLibro>) -> Json<DefaultResponse>
 
 async fn get_libros() -> Json<DefaultResponse> {
     let pool = DB::connection().await;
-    let libros = sqlx::query_as!(LibrosDb, r#"SELECT * FROM repolib"#)
+    let libros = sqlx::query_as!(LibrosDb, 
+        r#"SELECT * FROM repolib"#)
         .fetch_all(&pool)
         .await;
 
@@ -466,15 +467,15 @@ async fn get_libros() -> Json<DefaultResponse> {
                 .map(|x| LibrosDBV2 {
                     uuid: x.id.to_string(),
                     titulo: x.titulo,
-                    description: option_to_string(x.description),
+                    descripcion: option_to_string(x.descripcion),
                 })
                 .collect(),
-            description: "Registros obtenidos".to_string(),
+            descripcion: "Registros obtenidos".to_string(),
         },
         Err(_err) => DefaultResponse {
             status: "409 conflict".to_string(),
             libro: vec![],
-            description: "error al obtener registros".to_string(),
+            descripcion: "error al obtener registros".to_string(),
         },
     };
 
@@ -482,13 +483,24 @@ async fn get_libros() -> Json<DefaultResponse> {
     //las funciones asincronas devuelven un future
     //await extraer la informacion que contenia esa funcion asincona
 }
+<<<<<<< HEAD
+=======
+fn option_to_string(descripcion: Option<String>) -> String {
+    let resultado = match descripcion {
+        Some(desc) => desc,
+        None => "".to_string(),
+    };
+
+    resultado
+}
+>>>>>>> 0a6a705c298c9d6be3176c2d20ac69502da28e18
 
 // https://0.0.0.0libros/:id
 #[derive(Serialize)]
 struct ResponseLibros {
     id: String,
     status: String,
-    description: String,
+    descripcion: String,
 }
 
 async fn libros(Path(id): Path<String>) -> Json<ResponseLibros> {
@@ -498,7 +510,7 @@ async fn libros(Path(id): Path<String>) -> Json<ResponseLibros> {
     let response = ResponseLibros {
         id: libro_id,
         status: "OK".to_string(),
-        description: "Libro".to_string(),
+        descripcion: "Libro".to_string(),
     };
 
     Json(response)
@@ -525,18 +537,18 @@ async fn hello() -> &'static str {
 async fn login(Json(login): Json<Login>) -> Json<ResponseLogin> {
     let mut respone = ResponseLogin {
         status: "".to_string(),
-        description: "".to_string(),
+        descripcion: "".to_string(),
     };
 
     if login.email == "dani@uwu.com" && login.password == "123" {
         respone = ResponseLogin {
             status: "200 OK".to_string(),
-            description: "Logeado exitosamente".to_string(),
+            descripcion: "Logeado exitosamente".to_string(),
         };
     } else {
         respone = ResponseLogin {
             status: "409 Conflict".to_string(),
-            description: "El usuario no existe".to_string(),
+            descripcion: "El usuario no existe".to_string(),
         }
     }
 
@@ -556,5 +568,5 @@ struct Login {
 #[derive(Serialize)]
 struct ResponseLogin {
     status: String,
-    description: String,
+    descripcion: String,
 }
