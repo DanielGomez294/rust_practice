@@ -19,7 +19,7 @@ use sqlx::types::Uuid;
 struct LibrosDb {
     id: Uuid,
     titulo: String,
-    descripcion: Option<String>,
+    description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -38,7 +38,7 @@ struct DefaultResponse {
 
 struct LibroResumen {
     titulo: String,
-    descripcion: Option<String>,
+    description: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -198,15 +198,6 @@ async fn selectOn(Json(payload): Json<UuidLibro>) -> Json<SelectOne> {
     Json(response)
 }
 
-async fn _option_to_string(value: Option<String>) -> String {
-    let new_value = match value {
-        Some(val) => val,
-        None => "".to_string(),
-    };
-
-    new_value
-}
-
 fn option_to_string(description: Option<String>) -> String {
     let resultado = match description {
         Some(desc) => desc,
@@ -337,7 +328,7 @@ async fn insert_libros(Json(payload): Json<insertlibros>) -> Json<insertResponse
     let pool = DB::connection().await;
     let record = sqlx::query!(
         r#"
-    INSERT INTO repolib (titulo, descripcion) values($1, $2) returning id
+    INSERT INTO repolib (titulo, description) values($1, $2) returning id
     "#,
         payload.titulo,
         payload.descripcion
@@ -365,7 +356,7 @@ async fn update_libro(Json(payload): Json<LibrosDBV2>) -> Json<UpdateResponse> {
     let rows_affected = sqlx::query!(
         r#"
    UPDATE repolib
-   SET titulo = $1, descripcion = $2 WHERE id = $3
+   SET titulo = $1, description = $2 WHERE id = $3
     "#,
         payload.titulo,
         payload.descripcion,
@@ -431,7 +422,7 @@ async fn get_libro_uuid(Json(payload): Json<UuidLibro>) -> Json<DefaultResponse>
     let id = Uuid::parse_str(&payload.id).expect("error al transformar uuid");
     let sql = sqlx::query_as!(
         LibroResumen,
-        r#"SELECT  titulo , descripcion from repolib WHERE id = $1"#,
+        r#"SELECT  titulo , description from repolib WHERE id = $1"#,
         id
     )
     .fetch_one(&pool)
@@ -454,8 +445,7 @@ async fn get_libro_uuid(Json(payload): Json<UuidLibro>) -> Json<DefaultResponse>
 
 async fn get_libros() -> Json<DefaultResponse> {
     let pool = DB::connection().await;
-    let libros = sqlx::query_as!(LibrosDb, 
-        r#"SELECT * FROM repolib"#)
+    let libros = sqlx::query_as!(LibrosDb, r#"SELECT * FROM repolib"#)
         .fetch_all(&pool)
         .await;
 
@@ -467,7 +457,7 @@ async fn get_libros() -> Json<DefaultResponse> {
                 .map(|x| LibrosDBV2 {
                     uuid: x.id.to_string(),
                     titulo: x.titulo,
-                    descripcion: option_to_string(x.descripcion),
+                    descripcion: option_to_string(x.description),
                 })
                 .collect(),
             descripcion: "Registros obtenidos".to_string(),
@@ -483,17 +473,6 @@ async fn get_libros() -> Json<DefaultResponse> {
     //las funciones asincronas devuelven un future
     //await extraer la informacion que contenia esa funcion asincona
 }
-<<<<<<< HEAD
-=======
-fn option_to_string(descripcion: Option<String>) -> String {
-    let resultado = match descripcion {
-        Some(desc) => desc,
-        None => "".to_string(),
-    };
-
-    resultado
-}
->>>>>>> 0a6a705c298c9d6be3176c2d20ac69502da28e18
 
 // https://0.0.0.0libros/:id
 #[derive(Serialize)]
