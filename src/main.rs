@@ -41,7 +41,7 @@ struct LibroResumen {
     description: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct UuidLibro {
     id: String,
 }
@@ -70,6 +70,7 @@ async fn main() {
         .route("/actualizar", post(update))
         .route("/eliminar", post(delelete))
         .route("/select", get(select))
+        .route("/select/one", post(selectOn))
         .layer(
             CorsLayer::new()
                 .allow_origin(origins)
@@ -163,11 +164,56 @@ async fn select() -> Json<Response> {
     Json(response)
 }
 
-async fn option_to_String(value: Option<String>) {
+#[derive(Serialize)]
+struct SelectOne {
+    status: String,
+    data: UpdateLibros,
+    description: String,
+}
+async fn selectOn(Json(payload): Json<UuidLibro>) -> Json<SelectOne> {
+    let pool = DB::connection().await;
+
+    let uuid = Uuid::parse_str(&payload.id).expect("error al transformar uuid");
+
+    let sql = sqlx::query!(
+        "
+        SELECT * from repolib where id = $1
+        ",
+        uuid
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("error en el registro");
+
+    let response = SelectOne {
+        status: StatusCode::OK.to_string(),
+        data: UpdateLibros {
+            uuid: sql.id.to_string(),
+            titulo: sql.titulo,
+            description: option_to_string(sql.description),
+        },
+        description: "libro encontrado".to_string(),
+    };
+
+    Json(response)
+}
+
+async fn _option_to_string(value: Option<String>) -> String {
     let new_value = match value {
         Some(val) => val,
         None => "".to_string(),
     };
+
+    new_value
+}
+
+fn option_to_string(description: Option<String>) -> String {
+    let resultado = match description {
+        Some(desc) => desc,
+        None => "".to_string(),
+    };
+
+    resultado
 }
 #[derive(Deserialize)]
 struct InsertarLibros {
@@ -175,7 +221,9 @@ struct InsertarLibros {
     description: String,
 }
 
+#[derive(Deserialize, Serialize)]
 struct UpdateLibros {
+    uuid: String,
     titulo: String,
     description: String,
 }
@@ -433,14 +481,6 @@ async fn get_libros() -> Json<DefaultResponse> {
     Json(response)
     //las funciones asincronas devuelven un future
     //await extraer la informacion que contenia esa funcion asincona
-}
-fn option_to_string(description: Option<String>) -> String {
-    let resultado = match description {
-        Some(desc) => desc,
-        None => "".to_string(),
-    };
-
-    resultado
 }
 
 // https://0.0.0.0libros/:id
